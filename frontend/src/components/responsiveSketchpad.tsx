@@ -1,10 +1,12 @@
-import { createSignal, onMount, JSX } from "solid-js";
-import Sketchpad from "sketchpad";
+import { onMount, JSX } from "solid-js";
+// import Sketchpad from "sketchpad";
+import { Sketchpad } from "./sketchpad";
 import styles from "./responsiveSketchpad.module.css";
 
 interface Config {
   width?: number;
   height?: number;
+  onInit?: (instance: Sketchpad) => void;
 }
 
 export const ResponsiveSketchpad = (props: Config) => {
@@ -20,19 +22,24 @@ export const ResponsiveSketchpad = (props: Config) => {
     height: `${initialHeight}px`,
   };
 
-  let sketchpad!: HTMLDivElement;
+  let container!: HTMLDivElement;
   onMount(() => {
-    const pad = new Sketchpad(sketchpad, {
+    const pad = new Sketchpad(container, {
       width: initialWidth,
       height: initialHeight,
     });
+
+    if (props.onInit) {
+      // send instance
+      props.onInit(pad);
+    }
   });
 
   return (
     <div
       class={styles[`sketchpad-canvas`]}
       style={initialStyles}
-      ref={sketchpad}
+      ref={container}
     ></div>
   );
 };

@@ -1,0 +1,31 @@
+.color-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+}
+
+.color-input {
+    /* remove default browser styling */
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    width: 36px;
+    height: 36px;
+    background-color: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+}
+
+/* webkit */
+.color-input::-webkit-color-swatch {
+    border-radius: 8px;
+    border: 1px solid #ccc;
+}
+
+/* firefox */
+.color-input::-moz-color-swatch {
+    border-radius: 8px;
+    border: 1px solid #ccc;
+}
