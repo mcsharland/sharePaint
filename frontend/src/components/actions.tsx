@@ -1,6 +1,7 @@
 import { Component } from "solid-js";
 import { Sketchpad } from "./sketchpad";
 import styles from "./toolbar.module.css";
+import actionStyles from "./actions.module.css";
 
 interface ActionsProps {
   sketchpad?: Sketchpad;
@@ -16,6 +17,13 @@ export const Actions: Component<ActionsProps> = (props) => {
     link.click();
   };
 
+  const handleClear = () => {
+    if (!props.sketchpad) return;
+    if (confirm("Clear the entire canvas? This cannot be undone.")) {
+      props.sketchpad.clear();
+    }
+  };
+
   return (
     <div class={styles["ribbon-group"]}>
       <div class={styles["ribbon-group-content"]}>
@@ -25,8 +33,15 @@ export const Actions: Component<ActionsProps> = (props) => {
         <button onClick={() => props.sketchpad?.redo()} title="Redo">
           ↪ Redo
         </button>
+        <button
+          onClick={handleClear}
+          title="Clear Canvas"
+          class={actionStyles["clear-button"]}
+        >
+          🗑️ Clear
+        </button>
         <button onClick={handleSave} title="Save Image">
-          💾 Save
+          💾 Download
         </button>
       </div>
       <div class={styles["ribbon-group-label"]}>Actions</div>

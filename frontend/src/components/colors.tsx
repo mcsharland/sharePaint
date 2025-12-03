@@ -1,13 +1,19 @@
-import { Component } from "solid-js";
+import { Component, Accessor } from "solid-js";
 import { Sketchpad } from "./sketchpad";
 import styles from "./colors.module.css";
 import commonStyles from "./toolbar.module.css";
 
 interface ColorsProps {
   sketchpad?: Sketchpad;
+  currentColor: Accessor<string>;
+  onColorChange: (color: string) => void;
 }
 
 export const Colors: Component<ColorsProps> = (props) => {
+  const handleColorChange = (color: string) => {
+    props.onColorChange(color);
+    props.sketchpad?.setStrokeColor(color);
+  };
   return (
     <div class={commonStyles["ribbon-group"]}>
       <div class={commonStyles["ribbon-group-content"]}>
@@ -15,10 +21,8 @@ export const Colors: Component<ColorsProps> = (props) => {
           <input
             type="color"
             class={styles["color-input"]}
-            value="#000000"
-            onInput={(e) =>
-              props.sketchpad?.setStrokeColor(e.currentTarget.value)
-            }
+            value={props.currentColor()}
+            onInput={(e) => handleColorChange(e.currentTarget.value)}
             title="Choose Stroke Color"
           />
         </div>

@@ -16,6 +16,8 @@
     "vite-plugin-solid": "^2.11.6"
   },
   "dependencies": {
+    "dotenv": "^17.2.3",
+    "firebase": "^12.6.0",
     "sketchpad": "git+https://github.com/mcsharland/responsive-sketchpad.git",
     "socket.io-client": "^4.8.1",
     "solid-js": "^1.9.5"

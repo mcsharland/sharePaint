@@ -1,4 +1,4 @@
-export type ToolType = "brush" | "line" | "eraser";
+export type ToolType = "brush" | "line" | "eraser" | "eyedropper";
 
 export interface SketchpadOptions {
   width?: number;
@@ -10,6 +10,7 @@ export interface SketchpadOptions {
   userId?: string;
   onStroke?: (stroke: Stroke) => void; // stroke callback
   onUndo?: (strokeId: string) => void;
+  onColorPick?: (color: string) => void;
 }
 
 export interface Point {
@@ -32,7 +33,6 @@ export class Sketchpad {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
 
-  private tool: ToolType;
   private userId: string;
   private isDrawing: boolean = false;
   private lineStartPoint: Point | null = null;
@@ -42,6 +42,8 @@ export class Sketchpad {
   private currentStroke: Stroke | null = null;
 
   private options: Required<SketchpadOptions>;
+
+  public tool: ToolType;
 
   constructor(container: HTMLElement, options?: SketchpadOptions) {
     this.container = container;
@@ -57,6 +59,7 @@ export class Sketchpad {
         options?.userId ?? `user-${Math.random().toString(36).substr(2, 9)}`,
       onStroke: options?.onStroke ?? (() => {}),
       onUndo: options?.onUndo ?? (() => {}),
+      onColorPick: options?.onColorPick ?? (() => {}),
     };
 
     this.tool = this.options.tool;
@@ -162,8 +165,29 @@ export class Sketchpad {
     }
   }
 
+  public clear(): void {
+    this.strokes = [];
+    this.redoStack = [];
+    this.redraw();
+  }
+
   public getStrokes(): Stroke[] {
     return this.strokes;
+  }
+
+  public resize(width: number, height: number): void {
+    const oldWidth = this.canvas.width;
+    const oldHeight = this.canvas.height;
+
+    this.canvas.width = width;
+    this.canvas.height = height;
+    this.canvas.style.width = `${width}px`;
+    this.canvas.style.height = `${height}px`;
+
+    this.options.width = width;
+    this.options.height = height;
+
+    this.redraw();
   }
 
   public dispose(): void {
@@ -239,7 +263,9 @@ export class Sketchpad {
     const p = this.getPointerPos(e);
     const normP = this.normalizePoint(p);
 
-    if (this.tool === "brush" || this.tool === "eraser") {
+    if (this.tool === "eyedropper") {
+      this.pickColor(p);
+    } else if (this.tool === "brush" || this.tool === "eraser") {
       this.startFreehandStroke(p, normP);
     } else if (this.tool === "line") {
       this.handleLineClick(normP);
@@ -263,6 +289,31 @@ export class Sketchpad {
 
   private handleMouseLeave(e: MouseEvent): void {
     if (this.tool !== "line") this.endFreehandStroke();
+  }
+
+  private pickColor(p: Point): void {
+    // get pixel at the clicked
+    const imageData = this.ctx.getImageData(
+      Math.floor(p.x),
+      Math.floor(p.y),
+      1,
+      1,
+    );
+    const pixel = imageData.data;
+
+    //RGB to hex
+    const r = pixel[0];
+    const g = pixel[1];
+    const b = pixel[2];
+    const hex = `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
+
+    // update stroke color
+    this.options.strokeColor = hex;
+
+    // notify parent component (so color picker UI updates)
+    this.options.onColorPick(hex);
+
+    this.setTool("brush");
   }
 
   // draw

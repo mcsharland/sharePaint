@@ -1,45 +1,92 @@
-import { onMount, JSX } from "solid-js";
-// import Sketchpad from "sketchpad";
+import { onMount, onCleanup, createSignal } from "solid-js";
 import { Sketchpad } from "./sketchpad";
+import { userManager } from "../socket";
 import styles from "./responsiveSketchpad.module.css";
+import type { ToolType } from "./sketchpad";
 
 interface Config {
   width?: number;
   height?: number;
   onInit?: (instance: Sketchpad) => void;
+  onToolChange?: (tool: ToolType) => void;
+  onColorChange?: (color: string) => void;
 }
 
 export const ResponsiveSketchpad = (props: Config) => {
   const TOOLBAR_HEIGHT = 110;
 
-  const initialWidth: number = props.width ?? window.innerWidth;
-  const initialHeight: number =
-    props.height ?? window.innerHeight - TOOLBAR_HEIGHT;
+  let container!: HTMLDivElement;
+  let sketchpadInstance: Sketchpad | null = null;
+  let resizeTimeout: number | null = null;
 
-  // style object
-  const initialStyles: JSX.CSSProperties = {
-    width: `${initialWidth}px`,
-    height: `${initialHeight}px`,
+  const getContainerDimensions = () => {
+    const rect = container.getBoundingClientRect();
+    return {
+      width: Math.floor(rect.width),
+      height: Math.floor(rect.height),
+    };
   };
 
-  let container!: HTMLDivElement;
-  onMount(() => {
-    const pad = new Sketchpad(container, {
-      width: initialWidth,
-      height: initialHeight,
-    });
+  const handleResize = () => {
+    // debounce resize events to avoid excess redraws
+    if (resizeTimeout) {
+      clearTimeout(resizeTimeout);
+    }
 
-    if (props.onInit) {
-      // send instance
-      props.onInit(pad);
+    resizeTimeout = window.setTimeout(() => {
+      if (sketchpadInstance && container) {
+        const { width, height } = getContainerDimensions();
+        sketchpadInstance.resize(width, height);
+        console.log(`[ResponsiveSketchpad] Resized to ${width}x${height}`);
+      }
+    }, 150); // 150ms
+  };
+
+  onMount(() => {
+    const userId = userManager.getUserId() || undefined;
+
+    requestAnimationFrame(() => {
+      const { width, height } = getContainerDimensions();
+
+      sketchpadInstance = new Sketchpad(container, {
+        width,
+        height,
+        userId: userId,
+        onColorPick: (color: string) => {
+          // notify parent when color is picked
+          if (props.onColorChange) {
+            props.onColorChange(color);
+          }
+        },
+      });
+
+      const originalSetTool = sketchpadInstance.setTool.bind(sketchpadInstance);
+      sketchpadInstance.setTool = (tool: ToolType) => {
+        originalSetTool(tool);
+        if (props.onToolChange) {
+          props.onToolChange(tool);
+        }
+      };
+
+      if (props.onInit) {
+        props.onInit(sketchpadInstance);
+      }
+
+      window.addEventListener("resize", handleResize);
+    });
+  });
+
+  onCleanup(() => {
+    window.removeEventListener("resize", handleResize);
+
+    if (resizeTimeout) {
+      clearTimeout(resizeTimeout);
+    }
+
+    if (sketchpadInstance) {
+      sketchpadInstance.dispose();
     }
   });
 
-  return (
-    <div
-      class={styles[`sketchpad-canvas`]}
-      style={initialStyles}
-      ref={container}
-    ></div>
-  );
+  return <div class={styles[`sketchpad-canvas`]} ref={container}></div>;
 };

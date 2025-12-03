@@ -1,17 +1,17 @@
-import { Component, createSignal } from "solid-js";
+import { Component, Accessor } from "solid-js";
 import { Sketchpad, ToolType } from "./sketchpad";
 import styles from "./toolbar.module.css"; // reuse toolbar styles
 
 interface ToolsProps {
   sketchpad?: Sketchpad;
+  currentTool: Accessor<ToolType>;
+  onToolChange: (tool: ToolType) => void;
 }
 
 export const Tools: Component<ToolsProps> = (props) => {
-  const [activeTool, setActiveTool] = createSignal<ToolType>("brush");
-
   const handleToolClick = (tool: ToolType) => {
-    setActiveTool(tool);
     props.sketchpad?.setTool(tool);
+    // setTool will trigger the callback in RS
   };
 
   return (
@@ -21,7 +21,7 @@ export const Tools: Component<ToolsProps> = (props) => {
           onClick={() => handleToolClick("brush")}
           style={{
             "background-color":
-              activeTool() === "brush" ? "#ddd" : "transparent",
+              props.currentTool() === "brush" ? "#ddd" : "transparent",
           }}
         >
           🖌️ Brush
@@ -30,7 +30,7 @@ export const Tools: Component<ToolsProps> = (props) => {
           onClick={() => handleToolClick("line")}
           style={{
             "background-color":
-              activeTool() === "line" ? "#ddd" : "transparent",
+              props.currentTool() === "line" ? "#ddd" : "transparent",
           }}
         >
           📏 Line
@@ -39,10 +39,20 @@ export const Tools: Component<ToolsProps> = (props) => {
           onClick={() => handleToolClick("eraser")}
           style={{
             "background-color":
-              activeTool() === "eraser" ? "#ddd" : "transparent",
+              props.currentTool() === "eraser" ? "#ddd" : "transparent",
           }}
         >
           🧽 Eraser
+        </button>
+        <button
+          onClick={() => handleToolClick("eyedropper")}
+          style={{
+            "background-color":
+              props.currentTool() === "eyedropper" ? "#ddd" : "transparent",
+          }}
+          title="Eyedropper - Pick color from canvas"
+        >
+          💧 Pick
         </button>
       </div>
       <div class={styles["ribbon-group-label"]}>Tools</div>

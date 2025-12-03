@@ -13,10 +13,22 @@ export const RoomManager: Component<RoomManagerProps> = (props) => {
     const params = new URLSearchParams(window.location.search);
     const roomId = params.get("room");
 
-    console.log(`[RoomManager] Joining room: ${roomId}`);
+    console.log(`[RoomManager] Preparing to join room: ${roomId}`);
+    const handleUserRegistered = () => {
+      console.log(`[RoomManager] User registered, now joining room: ${roomId}`);
+      socket.emit("join-room", roomId);
+      // Remove listener after joining once
+      socket.off("user-registered", handleUserRegistered);
+    };
 
-    if (!socket.connected) socket.connect();
-    socket.emit("join-room", roomId);
+    if (socket.connected && socket.id) {
+      socket.once("user-registered", handleUserRegistered);
+
+      setTimeout(() => socket.emit("join-room", roomId), 100);
+    } else {
+      // wait for registration
+      socket.once("user-registered", handleUserRegistered);
+    }
 
     // load canvas
     const handleHistory = (strokes: Stroke[]) => {
