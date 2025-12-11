@@ -1,6 +1,7 @@
 import { Component, createSignal, Show, For, createEffect } from "solid-js";
 import { useAuth } from "../authContext";
 import { projectService, Project } from "../projectService";
+import { ManageCollaboratorsModal } from "./manageCollaboratorsModal";
 import type { Sketchpad } from "./sketchpad";
 import styles from "./projectsModal.module.css";
 
@@ -15,6 +16,10 @@ export const ProjectsModal: Component<ProjectsModalProps> = (props) => {
   const [projects, setProjects] = createSignal<Project[]>([]);
   const [loading, setLoading] = createSignal(false);
   const [error, setError] = createSignal("");
+  const [showManageModal, setShowManageModal] = createSignal(false);
+  const [selectedProject, setSelectedProject] = createSignal<Project | null>(
+    null,
+  );
 
   const loadProjects = async () => {
     if (!auth.user()) return;
@@ -113,7 +118,15 @@ export const ProjectsModal: Component<ProjectsModalProps> = (props) => {
                 {(project) => (
                   <div class={styles.projectItem}>
                     <div class={styles.projectInfo}>
-                      <div class={styles.projectName}>{project.name}</div>
+                      <div class={styles.projectName}>
+                        {project.name}
+                        {project.isPrivate && (
+                          <span class={styles.privateBadge}>🔒</span>
+                        )}
+                        {!project.isOwner && (
+                          <span class={styles.collabBadge}>Collaborator</span>
+                        )}
+                      </div>
                       <div class={styles.projectDate}>
                         {(() => {
                           // convert firestore timestamp to date
@@ -136,13 +149,27 @@ export const ProjectsModal: Component<ProjectsModalProps> = (props) => {
                       >
                         Load
                       </button>
-                      <button
-                        onClick={() => handleDeleteProject(project.id)}
-                        class={styles.deleteButton}
-                        title="Delete Project"
-                      >
-                        🗑️
-                      </button>
+                      <Show when={project.isOwner}>
+                        <button
+                          onClick={() => {
+                            setSelectedProject(project);
+                            setShowManageModal(true);
+                          }}
+                          class={styles.manageButton}
+                          title="Manage Collaborators"
+                        >
+                          Manage
+                        </button>
+                      </Show>
+                      <Show when={project.isOwner}>
+                        <button
+                          onClick={() => handleDeleteProject(project.id)}
+                          class={styles.deleteButton}
+                          title="Delete Project"
+                        >
+                          🗑️
+                        </button>
+                      </Show>
                     </div>
                   </div>
                 )}
@@ -151,6 +178,11 @@ export const ProjectsModal: Component<ProjectsModalProps> = (props) => {
           </Show>
         </div>
       </div>
+      <ManageCollaboratorsModal
+        isOpen={showManageModal()}
+        onClose={() => setShowManageModal(false)}
+        project={selectedProject()}
+      />
     </Show>
   );
 };

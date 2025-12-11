@@ -6,6 +6,12 @@
     border-bottom: 1px solid #ccc;
     padding: 0 10px;
     overflow-x: auto;
+    transition: opacity 0.2s;
+}
+
+.toolbar-container.viewer-mode {
+    opacity: 0.5;
+    pointer-events: none;
 }
 
 .ribbon-group {
@@ -43,9 +49,38 @@
     border-color: #ccc;
 }
 
+.ribbon-group-content button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.ribbon-group-content input:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
 .ribbon-group-label {
     font-size: 12px;
     color: #666;
     margin-top: 5px;
     font-weight: 500;
+}
+
+.fill-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    user-select: none;
+}
+
+.fill-checkbox {
+    cursor: pointer;
+    width: 16px;
+    height: 16px;
+}
+
+.fill-checkbox:disabled {
+    cursor: not-allowed;
 }

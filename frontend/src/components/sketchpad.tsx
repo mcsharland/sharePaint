@@ -1,4 +1,11 @@
-export type ToolType = "brush" | "line" | "eraser" | "eyedropper";
+export type ToolType =
+  | "brush"
+  | "line"
+  | "eraser"
+  | "eyedropper"
+  | "rectangle"
+  | "circle"
+  | "text";
 
 export interface SketchpadOptions {
   width?: number;
@@ -8,9 +15,12 @@ export interface SketchpadOptions {
   lineWidth?: number;
   tool?: ToolType;
   userId?: string;
+  isViewerMode?: boolean;
+  fillShapes?: boolean;
   onStroke?: (stroke: Stroke) => void; // stroke callback
   onUndo?: (strokeId: string) => void;
   onColorPick?: (color: string) => void;
+  onTextRequest?: (point: Point) => void;
 }
 
 export interface Point {
@@ -26,6 +36,8 @@ export interface Stroke {
   color: string;
   width: number;
   isEraser?: boolean;
+  filled?: boolean;
+  text?: string;
 }
 
 export class Sketchpad {
@@ -34,8 +46,9 @@ export class Sketchpad {
   private ctx: CanvasRenderingContext2D;
 
   private userId: string;
+  private isViewerMode: boolean = false;
   private isDrawing: boolean = false;
-  private lineStartPoint: Point | null = null;
+  private shapeStartPoint: Point | null = null;
 
   private strokes: Stroke[] = [];
   private redoStack: Stroke[] = [];
@@ -57,19 +70,28 @@ export class Sketchpad {
       tool: options?.tool ?? "brush",
       userId:
         options?.userId ?? `user-${Math.random().toString(36).substr(2, 9)}`,
+      isViewerMode: options?.isViewerMode ?? false,
+      fillShapes: options?.fillShapes ?? false,
       onStroke: options?.onStroke ?? (() => {}),
       onUndo: options?.onUndo ?? (() => {}),
       onColorPick: options?.onColorPick ?? (() => {}),
+      onTextRequest: options?.onTextRequest ?? (() => {}),
     };
 
     this.tool = this.options.tool;
     this.userId = this.options.userId;
+    this.isViewerMode = this.options.isViewerMode;
 
     this.canvas = document.createElement("canvas");
     this.canvas.width = this.options.width;
     this.canvas.height = this.options.height;
     this.canvas.style.display = "block";
     this.canvas.style.touchAction = "none"; // prevent scroll on touch devices
+
+    if (this.isViewerMode) {
+      // visual indicator of viewer mode
+      this.canvas.style.cursor = "default";
+    }
 
     this.container.appendChild(this.canvas);
 
@@ -87,6 +109,15 @@ export class Sketchpad {
 
     this.resetCanvas();
     this.bindEvents();
+  }
+
+  public setViewerMode(isViewer: boolean): void {
+    this.isViewerMode = isViewer;
+    this.canvas.style.cursor = isViewer ? "default" : "crosshair";
+  }
+
+  public isViewer(): boolean {
+    return this.isViewerMode;
   }
 
   // network api
@@ -117,9 +148,13 @@ export class Sketchpad {
 
   public setTool(tool: ToolType): void {
     this.tool = tool;
-    this.lineStartPoint = null;
+    this.shapeStartPoint = null;
     this.isDrawing = false;
     this.redraw();
+  }
+
+  public setFillShapes(fill: boolean): void {
+    this.options.fillShapes = fill;
   }
 
   public setLineSize(size: number): void {
@@ -135,6 +170,7 @@ export class Sketchpad {
   }
 
   public undo(): void {
+    if (this.isViewerMode) return;
     let indexToRemove = -1;
 
     for (let i = this.strokes.length - 1; i >= 0; i--) {
@@ -155,6 +191,7 @@ export class Sketchpad {
   }
 
   public redo(): void {
+    if (this.isViewerMode) return;
     if (this.redoStack.length === 0) return;
     const stroke = this.redoStack.pop();
     if (stroke) {
@@ -166,6 +203,7 @@ export class Sketchpad {
   }
 
   public clear(): void {
+    if (this.isViewerMode) return;
     this.strokes = [];
     this.redoStack = [];
     this.redraw();
@@ -203,7 +241,17 @@ export class Sketchpad {
 
   private redraw(): void {
     this.resetCanvas();
-    this.strokes.forEach((stroke) => this.drawStrokePath(stroke));
+    this.strokes.forEach((stroke) => {
+      if (stroke.type === "rectangle") {
+        this.drawRectangle(stroke);
+      } else if (stroke.type === "circle") {
+        this.drawCircle(stroke);
+      } else if (stroke.type === "text") {
+        this.drawText(stroke);
+      } else {
+        this.drawStrokePath(stroke);
+      }
+    });
   }
 
   private drawStrokePath(stroke: Stroke): void {
@@ -231,6 +279,63 @@ export class Sketchpad {
     this.ctx.stroke();
   }
 
+  private drawRectangle(stroke: Stroke): void {
+    if (stroke.points.length !== 2) return;
+
+    const start = this.denormalizePoint(stroke.points[0]);
+    const end = this.denormalizePoint(stroke.points[1]);
+
+    const x = Math.min(start.x, end.x);
+    const y = Math.min(start.y, end.y);
+    const width = Math.abs(end.x - start.x);
+    const height = Math.abs(end.y - start.y);
+
+    this.ctx.strokeStyle = stroke.color;
+    this.ctx.lineWidth = stroke.width;
+
+    if (stroke.filled) {
+      this.ctx.fillStyle = stroke.color;
+      this.ctx.fillRect(x, y, width, height);
+    } else {
+      this.ctx.strokeRect(x, y, width, height);
+    }
+  }
+
+  private drawCircle(stroke: Stroke): void {
+    if (stroke.points.length !== 2) return;
+
+    const center = this.denormalizePoint(stroke.points[0]);
+    const edge = this.denormalizePoint(stroke.points[1]);
+
+    const radius = Math.sqrt(
+      Math.pow(edge.x - center.x, 2) + Math.pow(edge.y - center.y, 2),
+    );
+
+    this.ctx.beginPath();
+    this.ctx.arc(center.x, center.y, radius, 0, 2 * Math.PI);
+
+    this.ctx.strokeStyle = stroke.color;
+    this.ctx.lineWidth = stroke.width;
+
+    if (stroke.filled) {
+      this.ctx.fillStyle = stroke.color;
+      this.ctx.fill();
+    } else {
+      this.ctx.stroke();
+    }
+  }
+
+  private drawText(stroke: Stroke): void {
+    if (stroke.points.length === 0 || !stroke.text) return;
+
+    const pos = this.denormalizePoint(stroke.points[0]);
+
+    this.ctx.font = `${stroke.width * 10}px sans-serif`; // scale font size with line width for now
+    this.ctx.fillStyle = stroke.color;
+    this.ctx.textBaseline = "top";
+    this.ctx.fillText(stroke.text, pos.x, pos.y);
+  }
+
   private bindEvents(): void {
     this.canvas.addEventListener("mousedown", this.handleMouseDown);
     this.canvas.addEventListener("mousemove", this.handleMouseMove);
@@ -252,43 +357,67 @@ export class Sketchpad {
     e.preventDefault();
     this.isDrawing = false;
     this.currentStroke = null;
-    this.lineStartPoint = null;
+    this.shapeStartPoint = null;
     this.redraw();
   }
 
   private handleMouseDown(e: MouseEvent): void {
+    if (this.isViewerMode) return;
     if (e.button !== 0) return;
     if (this.redoStack.length > 0) this.redoStack = [];
 
     const p = this.getPointerPos(e);
     const normP = this.normalizePoint(p);
 
-    if (this.tool === "eyedropper") {
-      this.pickColor(p);
-    } else if (this.tool === "brush" || this.tool === "eraser") {
+    if (this.tool === "brush" || this.tool === "eraser") {
       this.startFreehandStroke(p, normP);
-    } else if (this.tool === "line") {
-      this.handleLineClick(normP);
+    } else if (
+      this.tool === "line" ||
+      this.tool === "rectangle" ||
+      this.tool === "circle"
+    ) {
+      this.handleShapeClick(normP);
+    } else if (this.tool === "eyedropper") {
+      this.pickColor(p);
+    } else if (this.tool === "text") {
+      this.handleTextClick(normP);
     }
   }
 
   private handleMouseMove(e: MouseEvent): void {
+    if (this.isViewerMode) return;
     const p = this.getPointerPos(e);
     const normP = this.normalizePoint(p);
 
     if (this.tool === "brush" || this.tool === "eraser") {
       this.continueFreehandStroke(p, normP);
-    } else if (this.tool === "line") {
-      this.updateLinePreview(normP);
+    } else if (
+      this.tool === "line" ||
+      this.tool === "rectangle" ||
+      this.tool === "circle"
+    ) {
+      this.updateShapePreview(normP);
     }
   }
 
   private handleMouseUp(e: MouseEvent): void {
-    if (this.tool !== "line") this.endFreehandStroke();
+    if (
+      this.tool !== "line" &&
+      this.tool !== "rectangle" &&
+      this.tool !== "circle"
+    ) {
+      this.endFreehandStroke();
+    }
   }
 
   private handleMouseLeave(e: MouseEvent): void {
-    if (this.tool !== "line") this.endFreehandStroke();
+    if (
+      this.tool !== "line" &&
+      this.tool !== "rectangle" &&
+      this.tool !== "circle"
+    ) {
+      this.endFreehandStroke();
+    }
   }
 
   private pickColor(p: Point): void {
@@ -362,40 +491,130 @@ export class Sketchpad {
     }
   }
 
-  private handleLineClick(normP: Point): void {
-    if (!this.lineStartPoint) {
-      this.lineStartPoint = normP;
+  private handleShapeClick(normP: Point): void {
+    if (!this.shapeStartPoint) {
+      this.shapeStartPoint = normP;
     } else {
       const newStroke: Stroke = {
         id: crypto.randomUUID(),
         userId: this.userId,
-        type: "line",
+        type: this.tool,
         color: this.options.strokeColor,
         width: this.options.lineWidth,
-        points: [this.lineStartPoint, normP],
+        points: [this.shapeStartPoint, normP],
+        filled: this.options.fillShapes,
       };
 
       this.strokes.push(newStroke);
-      this.lineStartPoint = null;
+      this.shapeStartPoint = null;
       this.redraw();
-      this.options.onStroke(newStroke); // emit stroke
+      this.options.onStroke(newStroke);
     }
   }
 
-  private updateLinePreview(normP: Point): void {
-    if (!this.lineStartPoint) return;
+  // private handleLineClick(normP: Point): void {
+  //   if (!this.shapeStartPoint) {
+  //     this.shapeStartPoint = normP;
+  //   } else {
+  //     const newStroke: Stroke = {
+  //       id: crypto.randomUUID(),
+  //       userId: this.userId,
+  //       type: "line",
+  //       color: this.options.strokeColor,
+  //       width: this.options.lineWidth,
+  //       points: [this.shapeStartPoint, normP],
+  //     };
+
+  //     this.strokes.push(newStroke);
+  //     this.shapeStartPoint = null;
+  //     this.redraw();
+  //     this.options.onStroke(newStroke); // emit stroke
+  //   }
+  // }
+
+  private updateShapePreview(normP: Point): void {
+    if (!this.shapeStartPoint) return;
     this.redraw();
 
-    const start = this.denormalizePoint(this.lineStartPoint);
+    const start = this.denormalizePoint(this.shapeStartPoint);
     const end = this.denormalizePoint(normP);
 
-    this.ctx.beginPath();
     this.ctx.strokeStyle = this.options.strokeColor;
     this.ctx.lineWidth = this.options.lineWidth;
-    this.ctx.lineCap = "round";
-    this.ctx.moveTo(start.x, start.y);
-    this.ctx.lineTo(end.x, end.y);
-    this.ctx.stroke();
+
+    if (this.tool === "line") {
+      this.ctx.beginPath();
+      this.ctx.lineCap = "round";
+      this.ctx.moveTo(start.x, start.y);
+      this.ctx.lineTo(end.x, end.y);
+      this.ctx.stroke();
+    } else if (this.tool === "rectangle") {
+      const x = Math.min(start.x, end.x);
+      const y = Math.min(start.y, end.y);
+      const width = Math.abs(end.x - start.x);
+      const height = Math.abs(end.y - start.y);
+
+      if (this.options.fillShapes) {
+        this.ctx.fillStyle = this.options.strokeColor;
+        this.ctx.fillRect(x, y, width, height);
+      } else {
+        this.ctx.strokeRect(x, y, width, height);
+      }
+    } else if (this.tool === "circle") {
+      const radius = Math.sqrt(
+        Math.pow(end.x - start.x, 2) + Math.pow(end.y - start.y, 2),
+      );
+
+      this.ctx.beginPath();
+      this.ctx.arc(start.x, start.y, radius, 0, 2 * Math.PI);
+
+      if (this.options.fillShapes) {
+        this.ctx.fillStyle = this.options.strokeColor;
+        this.ctx.fill();
+      } else {
+        this.ctx.stroke();
+      }
+    }
+  }
+
+  // private updateLinePreview(normP: Point): void {
+  //   if (!this.shapeStartPoint) return;
+  //   this.redraw();
+
+  //   const start = this.denormalizePoint(this.shapeStartPoint);
+  //   const end = this.denormalizePoint(normP);
+
+  //   this.ctx.beginPath();
+  //   this.ctx.strokeStyle = this.options.strokeColor;
+  //   this.ctx.lineWidth = this.options.lineWidth;
+  //   this.ctx.lineCap = "round";
+  //   this.ctx.moveTo(start.x, start.y);
+  //   this.ctx.lineTo(end.x, end.y);
+  //   this.ctx.stroke();
+  // }
+
+  private handleTextClick(normP: Point): void {
+    // trigger callback to app/ui to show text input modal
+    const denormP = this.denormalizePoint(normP);
+    this.options.onTextRequest(normP);
+  }
+
+  public addTextStroke(text: string, normPoint: Point): void {
+    if (!text.trim()) return;
+
+    const textStroke: Stroke = {
+      id: crypto.randomUUID(),
+      userId: this.userId,
+      type: "text",
+      color: this.options.strokeColor,
+      width: this.options.lineWidth,
+      points: [normPoint],
+      text: text,
+    };
+
+    this.strokes.push(textStroke);
+    this.redraw();
+    this.options.onStroke(textStroke);
   }
 
   private getPointerPos(e: MouseEvent): Point {

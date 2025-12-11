@@ -7,6 +7,7 @@ interface ColorsProps {
   sketchpad?: Sketchpad;
   currentColor: Accessor<string>;
   onColorChange: (color: string) => void;
+  isViewerMode?: boolean;
 }
 
 export const Colors: Component<ColorsProps> = (props) => {
@@ -22,6 +23,7 @@ export const Colors: Component<ColorsProps> = (props) => {
             type="color"
             class={styles["color-input"]}
             value={props.currentColor()}
+            disabled={props.isViewerMode}
             onInput={(e) => handleColorChange(e.currentTarget.value)}
             title="Choose Stroke Color"
           />

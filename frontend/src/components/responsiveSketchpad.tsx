@@ -1,5 +1,5 @@
 import { onMount, onCleanup, createSignal } from "solid-js";
-import { Sketchpad } from "./sketchpad";
+import { Sketchpad, Point } from "./sketchpad";
 import { userManager } from "../socket";
 import styles from "./responsiveSketchpad.module.css";
 import type { ToolType } from "./sketchpad";
@@ -10,6 +10,7 @@ interface Config {
   onInit?: (instance: Sketchpad) => void;
   onToolChange?: (tool: ToolType) => void;
   onColorChange?: (color: string) => void;
+  onTextRequest?: (point: Point) => void;
 }
 
 export const ResponsiveSketchpad = (props: Config) => {
@@ -47,7 +48,6 @@ export const ResponsiveSketchpad = (props: Config) => {
 
     requestAnimationFrame(() => {
       const { width, height } = getContainerDimensions();
-
       sketchpadInstance = new Sketchpad(container, {
         width,
         height,
@@ -56,6 +56,12 @@ export const ResponsiveSketchpad = (props: Config) => {
           // notify parent when color is picked
           if (props.onColorChange) {
             props.onColorChange(color);
+          }
+        },
+        onTextRequest: (point: Point) => {
+          // notify parent when text tool is clicked
+          if (props.onTextRequest) {
+            props.onTextRequest(point);
           }
         },
       });
@@ -78,11 +84,9 @@ export const ResponsiveSketchpad = (props: Config) => {
 
   onCleanup(() => {
     window.removeEventListener("resize", handleResize);
-
     if (resizeTimeout) {
       clearTimeout(resizeTimeout);
     }
-
     if (sketchpadInstance) {
       sketchpadInstance.dispose();
     }

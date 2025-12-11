@@ -13,6 +13,7 @@ interface SaveProjectModalProps {
 export const SaveProjectModal: Component<SaveProjectModalProps> = (props) => {
   const auth = useAuth();
   const [projectName, setProjectName] = createSignal("");
+  const [isPrivate, setIsPrivate] = createSignal(false);
   const [saving, setSaving] = createSignal(false);
   const [error, setError] = createSignal("");
   const [success, setSuccess] = createSignal(false);
@@ -48,6 +49,7 @@ export const SaveProjectModal: Component<SaveProjectModalProps> = (props) => {
         projectName() || "Untitled",
         strokes,
         roomId || undefined,
+        isPrivate(),
       );
 
       setSuccess(true);
@@ -108,6 +110,21 @@ export const SaveProjectModal: Component<SaveProjectModalProps> = (props) => {
               disabled={saving()}
               autofocus
             />
+            <label class={styles.checkboxLabel}>
+              <input
+                type="checkbox"
+                checked={isPrivate()}
+                onChange={(e) => setIsPrivate(e.currentTarget.checked)}
+                disabled={saving()}
+                class={styles.checkbox}
+              />
+              <span class={styles.checkboxText}>Private (invite-only)</span>
+            </label>
+            <p class={styles.hint}>
+              {isPrivate()
+                ? "Only you and invited collaborators can access this project"
+                : "Anyone with the room link can view and edit"}
+            </p>
             <button
               type="submit"
               disabled={saving() || success()}

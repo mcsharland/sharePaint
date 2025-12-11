@@ -6,11 +6,15 @@ const API_URL = "http://localhost:3001";
 export interface Project {
   id: string;
   name: string;
-  userId: string;
+  ownerId: string;
+  collaborators: { [uid: string]: "editor" | "viewer" };
+  isPrivate: boolean;
   strokes: Stroke[];
   roomId?: string | null;
   createdAt: Date;
   updatedAt: Date;
+  isOwner?: boolean;
+  userRole?: "editor" | "viewer";
 }
 
 export class ProjectService {
@@ -26,11 +30,12 @@ export class ProjectService {
     name: string,
     strokes: Stroke[],
     roomId?: string,
+    isPrivate?: boolean,
   ): Promise<Project> {
     const response = await fetch(`${API_URL}/api/projects`, {
       method: "POST",
       headers: this.getAuthHeaders(token),
-      body: JSON.stringify({ name, strokes, roomId }),
+      body: JSON.stringify({ name, strokes, roomId, isPrivate }),
     });
 
     if (!response.ok) {
@@ -94,6 +99,87 @@ export class ProjectService {
     if (!response.ok) {
       throw new Error("Failed to delete project");
     }
+  }
+  async addCollaborator(
+    token: string,
+    projectId: string,
+    collaboratorId: string,
+    role: "editor" | "viewer" = "editor",
+  ): Promise<void> {
+    const response = await fetch(
+      `${API_URL}/api/projects/${projectId}/collaborators`,
+      {
+        method: "POST",
+        headers: this.getAuthHeaders(token),
+        body: JSON.stringify({ collaboratorId, role }),
+      },
+    );
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || "Failed to add collaborator");
+    }
+
+    console.log(
+      `[ProjectService] Added collaborator ${collaboratorId} as ${role} to project ${projectId}`,
+    );
+  }
+
+  async removeCollaborator(
+    token: string,
+    projectId: string,
+    collaboratorId: string,
+  ): Promise<void> {
+    const response = await fetch(
+      `${API_URL}/api/projects/${projectId}/collaborators/${collaboratorId}`,
+      {
+        method: "DELETE",
+        headers: this.getAuthHeaders(token),
+      },
+    );
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || "Failed to remove collaborator");
+    }
+
+    console.log(
+      `[ProjectService] Removed collaborator from project ${projectId}`,
+    );
+  }
+  async lookupUserByEmail(
+    token: string,
+    email: string,
+  ): Promise<{ uid: string; email: string; displayName: string | null }> {
+    const response = await fetch(`${API_URL}/api/users/lookup`, {
+      method: "POST",
+      headers: this.getAuthHeaders(token),
+      body: JSON.stringify({ email }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || "Failed to lookup user");
+    }
+
+    return await response.json();
+  }
+
+  async lookupUserByUid(
+    token: string,
+    uid: string,
+  ): Promise<{ uid: string; email: string; displayName: string | null }> {
+    const response = await fetch(`${API_URL}/api/users/lookupByUid`, {
+      method: "POST",
+      headers: this.getAuthHeaders(token),
+      body: JSON.stringify({ uid }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || "Failed to lookup user");
+    }
+    return await response.json();
   }
 }
 
